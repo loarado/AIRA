@@ -47,18 +47,14 @@ pico_enable_stdio_usb(Basic_Command 1)
 # Add the standard library to the build
 target_link_libraries(Basic_Command
         pico_stdlib
-        pico_bootsel_via_double_reset # Allow to put the pico in bootsel mode by quick dooble reset
+        pico_bootsel_via_double_reset
         hardware_pwm
+        pico_cyw43_arch_none
         )
 
 # Add the standard include files to the build
 target_include_directories(Basic_Command PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
-)
-
-# Add any user requested libraries
-target_link_libraries(Basic_Command 
-        pico_cyw43_arch_none
         )
 
 pico_add_extra_outputs(Basic_Command)

@@ -1,8 +1,8 @@
 #include <stdio.h>
+#include <string.h>
 #include "pico/stdlib.h"
 #include "pico/cyw43_arch.h"
 #include "hardware/uart.h"
-
 
 #include "motor_config.h"
 #include "motor.h"
@@ -22,7 +22,7 @@ int main()
 
     // Example to turn on the Pico W LED
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
-
+    printf("LED ON - Pico W is running\n");
 
     // Init all the motor
     struct motor m_rear_left = init_motor(Motor_Rear_Left_IN1, Motor_Rear_Left_IN2, Motor_Rear_Left_PWM);
