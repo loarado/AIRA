@@ -20,23 +20,6 @@ _NUS_SERVICE = (_NUS_UUID, (_NUS_TX, _NUS_RX),)
 _ADV_TYPE_FLAGS = const(0x01)
 _ADV_TYPE_NAME = const(0x09)
 
-# Motor Configuration constants (from motor_config.h)
-Motor_Front_Left_IN1  = 20
-Motor_Front_Left_IN2  = 21
-Motor_Front_Left_PWM  = 22
-
-Motor_Front_Right_IN1 = 26
-Motor_Front_Right_IN2 = 27
-Motor_Front_Right_PWM = 28
-
-Motor_Rear_Left_IN1   = 3
-Motor_Rear_Left_IN2   = 4
-Motor_Rear_Left_PWM   = 2
-
-Motor_Rear_Right_IN1  = 6
-Motor_Rear_Right_IN2  = 7
-Motor_Rear_Right_PWM  = 5
-
 
 class Motor:
     def __init__(self, in1_pin, in2_pin, pwm_pin):
@@ -62,27 +45,75 @@ class Motor:
         self.pwm.duty_u16(int(duty * 65535))
 
 
-# Motor pin mapping (from motor_config.h)
+# Motor Configuration constants (from motor_config.h)
+# These constants mirror the values defined in the C firmware's motor_config.h.
+Motor_Front_Left_IN1  = 20
+Motor_Front_Left_IN2  = 21
+Motor_Front_Left_PWM  = 22
+
+Motor_Front_Right_IN1 = 26
+Motor_Front_Right_IN2 = 27
+Motor_Front_Right_PWM = 28
+
+Motor_Rear_Left_IN1   = 3
+Motor_Rear_Left_IN2   = 4
+Motor_Rear_Left_PWM   = 2
+
+Motor_Rear_Right_IN1  = 6
+Motor_Rear_Right_IN2  = 7
+Motor_Rear_Right_PWM  = 5
+
+# Motor pin mapping (matches motor_config.h)
 m_front_left  = Motor(Motor_Front_Left_IN1,  Motor_Front_Left_IN2,  Motor_Front_Left_PWM)
 m_front_right = Motor(Motor_Front_Right_IN1, Motor_Front_Right_IN2, Motor_Front_Right_PWM)
-m_rear_left = Motor(Motor_Rear_Left_IN1,   Motor_Rear_Left_IN2,   Motor_Rear_Left_PWM)
-m_rear_right = Motor(Motor_Rear_Right_IN1, Motor_Rear_Right_IN2, Motor_Rear_Right_PWM)
+m_rear_left   = Motor(Motor_Rear_Left_IN1,   Motor_Rear_Left_IN2,   Motor_Rear_Left_PWM)
+m_rear_right  = Motor(Motor_Rear_Right_IN1,  Motor_Rear_Right_IN2,  Motor_Rear_Right_PWM)
 motors = [m_front_left, m_front_right, m_rear_left, m_rear_right]
 
 
-def handle_command(cmd):
-    """Handle a single-character motor command. Same protocol as Basic_Command.c."""
-    if cmd == 'z':
+def handle_command(cmd: str):
+    """
+    Handle a single-character motor command.
+
+    Valid commands (case-insensitive):
+    - 'z': move forward
+    - 's': move backward
+    - 'q': turn left
+    - 'd': turn right
+    - 'a': idle/stop
+
+    Any whitespace (e.g. newlines, carriage returns, spaces, tabs) is ignored.
+    Unrecognized commands are ignored and do not stop the robot. This prevents
+    unintended "Idle" states from being triggered by line endings or noise on
+    the serial/BLE connection.
+    Returns a descriptive string when a command is executed, or None when
+    the character is ignored.
+    """
+    if not cmd:
+        return None
+
+    # Ignore whitespace and control characters (common on serial/BLE)
+    if cmd in ('\r', '\n', ' ', '\t'):
+        return None
+
+    c = cmd.lower()
+
+    if c == 'z':
+        # Forward: all motors forward at full speed
         for m in motors:
             m.forward()
             m.set_speed(1.0)
         return "Forward"
-    elif cmd == 's':
+
+    elif c == 's':
+        # Backward: all motors backward at full speed
         for m in motors:
             m.backward()
             m.set_speed(1.0)
         return "Backward"
-    elif cmd == 'q':
+
+    elif c == 'q':
+        # Turn left: left motors backward, right motors forward
         m_front_right.forward()
         m_rear_right.forward()
         m_front_left.backward()
@@ -90,7 +121,9 @@ def handle_command(cmd):
         for m in motors:
             m.set_speed(1.0)
         return "Turn Left"
-    elif cmd == 'd':
+
+    elif c == 'd':
+        # Turn right: left motors forward, right motors backward
         m_front_left.forward()
         m_rear_left.forward()
         m_front_right.backward()
@@ -98,11 +131,16 @@ def handle_command(cmd):
         for m in motors:
             m.set_speed(1.0)
         return "Turn Right"
-    else:
+
+    elif c == 'a':
+        # Idle/stop: set all motors to idle and zero speed
         for m in motors:
             m.idle()
             m.set_speed(0)
         return "Idle"
+
+    # Unknown command: do nothing
+    return None
 
 
 def build_advertising_payload(name):
@@ -144,8 +182,10 @@ class BLEUART:
                     for byte in msg:
                         cmd = chr(byte)
                         result = handle_command(cmd)
-                        print("BLE cmd:", cmd, "->", result)
-                        self._send(result + "\n")
+                        # Only echo and send a response when a valid command was handled
+                        if result:
+                            print("BLE cmd:", repr(cmd), "->", result)
+                            self._send(result + "\n")
 
     def _send(self, text):
         if self._conn_handle is not None:
@@ -175,7 +215,9 @@ def main():
             cmd = sys.stdin.read(1)
             if cmd:
                 result = handle_command(cmd)
-                print("Serial cmd:", cmd, "->", result)
+                # Only print when a valid command is processed
+                if result:
+                    print("Serial cmd:", repr(cmd), "->", result)
         time.sleep_ms(10)
 
 
